@@ -1,0 +1,72 @@
+#!/bin/bash
+
+#PBS -N songbird_analysis
+#PBS -m abe
+#PBS -l pmem=5gb
+#PBS -l walltime=5:00:00
+#PBS -l nodes=1:ppn=1
+#PBS -S /bin/bash
+
+source /home/jkcoker/miniconda3/bin/activate /home/jkcoker/miniconda3/envs/qiime2-2019.10
+
+### Collapse QIIME2 table to order level
+qiime taxa collapse \
+  --i-table table.qza \
+  --i-taxonomy taxonomy.qza \
+  --p-level 4 \
+  --o-collapsed-table table_tax-order.qza
+
+### Add pseudocount of 1
+qiime composition add-pseudcount \
+  --i-table table_tax-order.qza \
+  --p-pseudocount 1 \
+  --o-composition-table table_tax-order_pseudocount1.qza # Converts table to a composition table.
+
+### Extract BIOM file from table_tax-order_pseudocount1.qza. Import BIOM file back into QIIME for a feature table.
+qiime tools import \
+  --input-path feature-table.biom \
+  --input-format BIOMV210Format \
+  --output-path table_tax-order_pseudocount1_feature.qza
+
+### Run Songbird with optimized parameters (requires Songbird plugin)
+# Experimental model
+qiime songbird multinomial \
+  --i-table table_tax-order_pseudocount1_feature.qza \
+  --m-metadata-file metadata_qiime2.tsv \
+  --p-formula "Genotype+Infection+Time" \
+  --p-num-random-test-examples 30 \
+  --p-batch-size 30 \
+  --p-differential-prior 0.01 \
+  --p-epochs 5000 \
+  --p-summary-interval 1 \
+  --o-differentials differentials.qza \
+  --o-regression-stats regression-stats.qza \
+  --o-regression-biplot regression-biplot.qza
+
+# Null ("baseline") model
+qiime songbird multinomial \
+  --i-table table_tax-order_pseudocount1_feature.qza \
+  --m-metadata-file metadata_qiime2.tsv \
+  --p-formula "1" \
+  --p-num-random-test-examples 30 \
+  --p-batch-size 30 \
+  --p-differential-prior 0.01 \
+  --p-epochs 5000 \
+  --p-summary-interval 1 \
+  --o-differentials null-differentials.qza \
+  --o-regression-stats null-stats.qza \
+  --o-regression-biplot null-biplot.qza
+
+# Paired summary of experimental model compared to null model
+qiime songbird summarize-paired \
+  --i-regression-stats regression-stats.qza \
+  --i-baseline-stats null-stats.qza \
+  --o-visualization paired-summary.qza # Pseudo Q-squared = 0.17
+
+### Run Qurro to visualize log-fold differentials calculated by Songbird (requires Qurro plugin)
+qiime qurro differential-plot \
+  --i-ranks differentials.qza \
+  --i-table table_tax-order_pseudocount1_feature.qza \
+  --m-sample-metadata-file metadata_qiime2.tsv \
+  --verbose \
+  --o-visualization qurro_plot.qzv

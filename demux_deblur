@@ -1,0 +1,56 @@
+#!/bin/bash
+
+#PBS -N demux_deblur
+#PBS -m abe
+#PBS -l pmem=16gb
+#PBS -l walltime=36:00:00
+#PBS -l nodes=1:ppn=1
+#PBS -S /bin/bash
+
+source /home/jkcoker/miniconda3/bin/activate /home/jkcoker/miniconda3/envs/qiime2-2019.10
+
+### Import into QIIME2 format
+qiime tools import \
+  --type 'SampleData[PairedEndSequencesWithQuality]' \
+  --input-path manifest_record.tsv \ # Manifest record contains path of files for each sample
+  --output-path demux.qza \
+  --input-format PairedEndFastqManifestPhred33V2
+
+qiime demux summarize \
+  --i-data demux.qza \
+  --o-visualization demux.qzv
+
+### Remove low quality sequences
+qiime quality-filter q-score \
+  --i-demux demux.qza \
+  --o-filtered-sequences demux_filtered.qza \
+  --o-filter-stats demux_filter_stats.qza
+
+### Deblur
+qiime deblur denoise-16S \
+  --i-demultiplexed-seqs demux_filtered.qza \
+  --p-trim-length 150 \
+  --o-representative-sequences rep-seqs.qza \
+  --o-table table.qza \
+  --p-sample-stats \
+  --o-stats deblur-stats.qza
+
+### Visualize how many sequences were removed in quality-filter
+qiime metadata tabulate \
+  --m-input-file demux_filter_stats.qza \
+  --o-visualization demux_filter_stats.qzv
+
+### Visualize deblur output. This gives you a table with how many quality-filtered sequences per sample
+qiime deblur visualize-stats \
+  --i-deblur-stats deblur-stats.qza \
+  --o-visualization deblur-stats.qzv
+
+### Visualize table and rep-seqs output
+qiime feature-table summarize \
+  --i-table table.qza \
+  --o-visualization table.qzv \
+  --m-sample-metadata-file metadata_qiime2.tsv
+
+qiime feature-table tabulate-seqs \
+  --i-data rep-seqs.qza \
+  --o-visualization rep-seqs.qzv

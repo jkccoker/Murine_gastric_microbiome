@@ -1,0 +1,66 @@
+#!/bin/bash
+
+#PBS -N diversity_metrics
+#PBS -m abe
+#PBS -l pmem=5gb
+#PBS -l walltime=5:00:00
+#PBS -l nodes=1:ppn=1
+#PBS -S /bin/bash
+
+source /home/jkcoker/miniconda3/bin/activate /home/jkcoker/miniconda3/envs/qiime2-2019.10
+
+### Assign taxonomy with GreenGenes classifier. Visualize in QIIME2 with taxonomy bar plots.
+qiime feature-classifier classify-sklearn \
+    	--i-classifier gg-13-8-99-515-806-nb-classifier.qza \
+    	--i-reads rep-seqs.qza \
+    	--o-classification taxonomy.qza
+qiime metadata tabulate \
+    	--m-input-file taxonomy.qza \
+    	--o-visualization taxonomy.qzv
+
+qiime taxa barplot \
+    	--i-table table_filter.qza \
+    	--i-taxonomy taxonomy.qza \
+    	--m-metadata-file metadata_qiieme2.tsv \
+    	--o-visualization taxa-plots.qzv
+
+### Make phylogenetic tree using SEPP insertion
+qiime fragment-insertion sepp \
+    	--i-representative-sequences rep-seqs.qza \
+    	--i-reference-database sepp-refs-gg-13-8.qza \
+    	--o-tree insertion-tree.qza \
+    	--o-placements insertion-placements.qza
+
+qiime fragment-insertion filter-features \
+    	--i-table table_filter.qza \
+    	--i-tree insertion-tree.qza \
+    	--o-filtered-table filtered-table_SEPP.qza \
+    	--o-removed-table removed-table_SEPP.qza
+
+### Alpha rarefaction plot, to investigate appropriate sampling depth
+qiime diversity alpha-rarefaction \
+	--i-table table_filter.qza \
+	--i-phylogeny rooted-tree.qza \
+	--p-max-depth 10000 \
+	--m-metadata-file metadata_qiime2.tsv \
+	--o-visualization alpha-rarefaction.qzv
+
+### Diversity metrics, phylogenetic core metrics
+qiime diversity core-metrics-phylogenetic \
+	--i-phylogeny rooted-tree.qza \
+	--i-table table_filter.qza \
+	--p-sampling-depth 2300 \
+	--m-metadata-file metadata_qiime2.tsv \
+	--output-dir core-metrics
+
+### Robust Aitchison distance analysis (requires QIIME2 DEICODE plugin)
+qiime deicode rpca \
+  --i-table table_filter.qza \
+  --o-biplot rpca_ordination.qza \
+  --o-distance-matrix rpca_distance-matrix.qza
+
+qiime emperor biplot \
+  --i-biplot rpca_ordination.qza \
+  --m-sample-metadata-file metadata_qiime2.tsv \
+  --m-feature-metadata-file taxonomy.qza \
+  --o-visualization rpca_biplot.qzv
