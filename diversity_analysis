@@ -19,7 +19,7 @@ qiime metadata tabulate \
     	--o-visualization taxonomy.qzv
 
 qiime taxa filter-table \ # Filter out Cyanobacteria reads
-	--i-table table_filter.qza \
+	--i-table table.qza \
 	--i-taxonomy taxonomy.qza \
 	--p-exclude Cyanobacteria \
 	--o-filtered-table table_filter.qza
