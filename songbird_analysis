@@ -11,7 +11,7 @@ source /home/jkcoker/miniconda3/bin/activate /home/jkcoker/miniconda3/envs/qiime
 
 ### Collapse QIIME2 table to order level
 qiime taxa collapse \
-  --i-table table.qza \
+  --i-table table_filter.qza \
   --i-taxonomy taxonomy.qza \
   --p-level 4 \
   --o-collapsed-table table_tax-order.qza
